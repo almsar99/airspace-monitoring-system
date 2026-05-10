@@ -47,8 +47,11 @@ class Aeroplane:
         """Сравнение самолетов по высоте."""
         return self.altitude > other.altitude
 
-    def __eq__(self, other: "Aeroplane") -> bool:
+    def __eq__(self, other: object) -> bool:
         """Сравнение самолетов по высоте."""
+        if not isinstance(other, Aeroplane):
+            return NotImplemented
+
         return self.altitude == other.altitude
 
     def __repr__(self) -> str:

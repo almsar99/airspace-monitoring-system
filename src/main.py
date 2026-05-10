@@ -52,9 +52,9 @@ def user_interaction() -> None:
 
     print_aeroplanes(top_aeroplanes)
 
-    countries = input(
-        "\nВведите страны регистрации через запятую: "
-    ).split(",")
+    countries_input = input("\nВведите страны регистрации через запятую: ")
+
+    countries = countries_input.split(",")
 
     countries = [country.strip() for country in countries]
 

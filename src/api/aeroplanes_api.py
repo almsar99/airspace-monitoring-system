@@ -7,33 +7,37 @@ class AeroplanesAPI(BaseAPI):
     """Класс для работы с API OpenSky и Nominatim."""
 
     __BASE_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+
     __BASE_OPENSKY_URL = "https://opensky-network.org/api/states/all"
 
     def __init__(self) -> None:
-        self.__session = None
+        self.__session: requests.Session | None = None
 
     def _connect(self) -> None:
         """Создание HTTP-сессии."""
         self.__session = requests.Session()
 
-    def __get_country_coordinates(self, country: str) -> list:
+    def __get_country_coordinates(
+        self,
+        country: str,
+    ) -> list[str]:
         """
         Получение координат страны.
 
         :param country: Название страны
-        :return: list
+        :return: list[str]
         """
         self._connect()
 
-        headers = {
-            "User-Agent": "airspace-monitoring-system"
-        }
+        headers: dict[str, str] = {"User-Agent": "airspace-monitoring-system"}
 
-        params = {
+        params: dict[str, str] = {
             "country": country,
             "format": "json",
-            "limit": 1,
+            "limit": "1",
         }
+
+        assert self.__session is not None
 
         response = self.__session.get(
             self.__BASE_NOMINATIM_URL,
@@ -51,21 +55,26 @@ class AeroplanesAPI(BaseAPI):
 
         return data[0]["boundingbox"]
 
-    def get_data(self, country: str) -> list:
+    def get_data(
+        self,
+        country: str,
+    ) -> list:
         """
         Получение данных о самолетах.
 
         :param country: Название страны
         :return: list
         """
-        coordinates = self.__get_country_coordinates(country)
+        coordinates: list[str] = self.__get_country_coordinates(country)
 
-        params = {
+        params: dict[str, str] = {
             "lamin": coordinates[0],
             "lamax": coordinates[1],
             "lomin": coordinates[2],
             "lomax": coordinates[3],
         }
+
+        assert self.__session is not None
 
         response = self.__session.get(
             self.__BASE_OPENSKY_URL,

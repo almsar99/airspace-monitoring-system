@@ -6,13 +6,10 @@ def filter_by_country(
     countries: list[str],
 ) -> list[Aeroplane]:
     """
-    Фильтрация самолетов по стране регистрации.
+    Фильтрация самолетов
+    по стране регистрации.
     """
-    return [
-        aeroplane
-        for aeroplane in aeroplanes
-        if aeroplane.country in countries
-    ]
+    return [aeroplane for aeroplane in aeroplanes if aeroplane.country in countries]
 
 
 def sort_by_altitude(
