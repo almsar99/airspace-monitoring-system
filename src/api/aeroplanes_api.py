@@ -1,21 +1,42 @@
+import logging
+import time
+
 import requests
 
 from api.base_api import BaseAPI
+from config import (
+    NOMINATIM_URL,
+    OPENSKY_URL,
+    USER_AGENT,
+)
+from exceptions.exceptions import (
+    APIConnectionError,
+    CountryNotFoundError,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class AeroplanesAPI(BaseAPI):
     """Класс для работы с API OpenSky и Nominatim."""
 
-    __BASE_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
-
-    __BASE_OPENSKY_URL = "https://opensky-network.org/api/states/all"
-
     def __init__(self) -> None:
         self.__session: requests.Session | None = None
+
+        self.__retries = 3
+
+        self.__timeout = 10
+
+        self.__country_cache: dict[
+            str,
+            list[str],
+        ] = {}
 
     def _connect(self) -> None:
         """Создание HTTP-сессии."""
         self.__session = requests.Session()
+
+        logger.info("HTTP-сессия создана")
 
     def __get_country_coordinates(
         self,
@@ -25,11 +46,18 @@ class AeroplanesAPI(BaseAPI):
         Получение координат страны.
 
         :param country: Название страны
-        :return: list[str]
+        :return: list
         """
         self._connect()
 
-        headers: dict[str, str] = {"User-Agent": "airspace-monitoring-system"}
+        logger.info(f"Получение координат " f"страны: {country}")
+
+        if country in self.__country_cache:
+            logger.info("Координаты получены " "из кэша")
+
+            return self.__country_cache[country]
+
+        headers: dict[str, str] = {"User-Agent": USER_AGENT}
 
         params: dict[str, str] = {
             "country": country,
@@ -39,21 +67,44 @@ class AeroplanesAPI(BaseAPI):
 
         assert self.__session is not None
 
-        response = self.__session.get(
-            self.__BASE_NOMINATIM_URL,
-            params=params,
-            headers=headers,
-        )
+        for attempt in range(self.__retries):
+            try:
+                response = self.__session.get(
+                    NOMINATIM_URL,
+                    params=params,
+                    headers=headers,
+                    timeout=(self.__timeout),
+                )
+
+                break
+
+            except requests.RequestException:
+                logger.warning(f"Попытка " f"{attempt + 1} " f"не удалась")
+
+                time.sleep(1)
+
+        else:
+            raise APIConnectionError("Ошибка подключения " "к API")
 
         if response.status_code != 200:
-            raise ConnectionError("Ошибка подключения к Nominatim API")
+            logger.error("Ошибка подключения " "к Nominatim API")
+
+            raise APIConnectionError("Ошибка подключения " "к Nominatim API")
 
         data = response.json()
 
         if not data:
-            raise ValueError("Страна не найдена")
+            logger.error("Страна не найдена")
 
-        return data[0]["boundingbox"]
+            raise (CountryNotFoundError("Страна не найдена"))
+
+        logger.info("Координаты страны " "успешно получены")
+
+        coordinates = data[0]["boundingbox"]
+
+        self.__country_cache[country] = coordinates
+
+        return coordinates
 
     def get_data(
         self,
@@ -67,6 +118,8 @@ class AeroplanesAPI(BaseAPI):
         """
         coordinates: list[str] = self.__get_country_coordinates(country)
 
+        logger.info("Получение данных " "о самолетах")
+
         params: dict[str, str] = {
             "lamin": coordinates[0],
             "lamax": coordinates[1],
@@ -76,14 +129,34 @@ class AeroplanesAPI(BaseAPI):
 
         assert self.__session is not None
 
-        response = self.__session.get(
-            self.__BASE_OPENSKY_URL,
-            params=params,
-        )
+        for attempt in range(self.__retries):
+            try:
+                response = self.__session.get(
+                    OPENSKY_URL,
+                    params=params,
+                    timeout=(self.__timeout),
+                )
+
+                break
+
+            except requests.RequestException:
+                logger.warning(f"Попытка " f"{attempt + 1} " f"не удалась")
+
+                time.sleep(1)
+
+        else:
+            raise APIConnectionError("Ошибка подключения " "к API")
 
         if response.status_code != 200:
-            raise ConnectionError("Ошибка подключения к OpenSky API")
+            logger.error("Ошибка подключения " "к OpenSky API")
+
+            raise APIConnectionError("Ошибка подключения " "к OpenSky API")
 
         data = response.json()
 
-        return data.get("states", [])
+        logger.info("Данные о самолетах " "успешно получены")
+
+        return data.get(
+            "states",
+            [],
+        )
